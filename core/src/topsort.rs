@@ -69,7 +69,8 @@ fn get_enum_dependencies(
             tag_key: _,
             content_key: _,
             shared,
-        } => {
+        }
+        | RustEnum::InternallyTagged { tag_key: _, shared } => {
             if seen.insert(shared.id.original.to_string()) {
                 res.push(shared.id.original.to_string());
                 for variant in &shared.variants {
@@ -203,7 +204,8 @@ pub(crate) fn topsort(things: &mut [RustItem]) {
                     tag_key: _,
                     content_key: _,
                     shared,
-                } => shared.id.original.clone(),
+                }
+                | RustEnum::InternallyTagged { tag_key: _, shared } => shared.id.original.clone(),
                 RustEnum::Unit(shared) => shared.id.original.clone(),
             },
             RustItem::Struct(strct) => strct.id.original.clone(),

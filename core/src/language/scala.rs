@@ -1,4 +1,4 @@
-use super::{CrateTypes, Language};
+use super::{internally_tagged_enum_unsupported, CrateTypes, Language};
 use crate::language::SupportedLanguage;
 use crate::parser::{remove_dash_from_identifier, ParsedData};
 use crate::rust_types::{
@@ -194,6 +194,10 @@ impl Language for Scala {
     }
 
     fn write_enum(&mut self, w: &mut dyn Write, e: &RustEnum) -> std::io::Result<()> {
+        if let RustEnum::InternallyTagged { .. } = e {
+            return Err(internally_tagged_enum_unsupported("Scala", e));
+        }
+
         // Generate named types for any anonymous struct variants of this enum
         self.write_types_for_anonymous_structs(w, e, &|variant_name| {
             format!("{}{}Inner", &e.shared().id.renamed, variant_name)
@@ -208,6 +212,9 @@ impl Language for Scala {
         };
 
         match e {
+            RustEnum::InternallyTagged { .. } => {
+                unreachable!("rejected at the start of write_enum")
+            }
             RustEnum::Unit(shared) => {
                 writeln!(
                     w,
@@ -243,6 +250,9 @@ impl Language for Scala {
 impl Scala {
     fn write_enum_variants(&mut self, w: &mut dyn Write, e: &RustEnum) -> std::io::Result<()> {
         match e {
+            RustEnum::InternallyTagged { .. } => {
+                unreachable!("rejected at the start of write_enum")
+            }
             RustEnum::Unit(shared) => {
                 for v in shared.variants.iter() {
                     self.write_comments(w, 1, &v.shared().comments)?;

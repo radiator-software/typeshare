@@ -213,6 +213,7 @@ fn language(
         }),
         SupportedLanguage::TypeScript => Box::new(TypeScript {
             type_mappings: config.typescript.type_mappings,
+            unit_enums_as_unions: config.typescript.unit_enums_as_unions,
             ..Default::default()
         }),
         #[cfg(feature = "go")]

@@ -1,6 +1,6 @@
 use crate::{
     error::GenerationError,
-    language::{Language, SupportedLanguage},
+    language::{internally_tagged_enum_unsupported, Language, SupportedLanguage},
     parser::{remove_dash_from_identifier, DecoratorKind, ParsedData},
     rename::RenameExt,
     rust_types::{
@@ -433,9 +433,16 @@ impl Language for Swift {
             )
         }
 
+        if let RustEnum::InternallyTagged { .. } = e {
+            return Err(internally_tagged_enum_unsupported("Swift", e));
+        }
+
         let shared = e.shared();
         let enum_name = swift_keyword_aware_rename(format!("{}{}", self.prefix, shared.id.renamed));
         let always_present = match e {
+            RustEnum::InternallyTagged { .. } => {
+                unreachable!("rejected at the start of write_enum")
+            }
             RustEnum::Unit(_) => ["String"]
                 .into_iter()
                 .chain(self.get_default_decorators())
@@ -564,6 +571,9 @@ impl Swift {
         let mut coding_keys = Vec::new();
 
         match e {
+            RustEnum::InternallyTagged { .. } => {
+                unreachable!("rejected at the start of write_enum")
+            }
             RustEnum::Unit(shared) => {
                 for v in &shared.variants {
                     let variant_name = v.shared().id.original.to_camel_case();

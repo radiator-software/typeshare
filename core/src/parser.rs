@@ -323,6 +323,9 @@ pub(crate) fn parse_enum(
     let maybe_tag_key = get_tag_key(&e.attrs);
     let maybe_content_key = get_content_key(&e.attrs);
 
+    // A tag without content makes serde write the tag into the variant's own object
+    let is_internally_tagged = maybe_tag_key.is_some() && maybe_content_key.is_none();
+
     // Parse all of the enum's variants
     let variants = e
         .variants
@@ -331,8 +334,17 @@ pub(crate) fn parse_enum(
         // Filter out variants we've been told to skip
         .filter(|v| !is_skipped(&v.attrs, target_os))
         .inspect(|v| debug!("\t\taccepted variant {}", v.ident))
-        .map(|v| parse_enum_variant(v, &serde_rename_all, target_os))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|v| {
+            let variant = parse_enum_variant(v, &serde_rename_all, target_os)?;
+
+            if is_internally_tagged {
+                check_internally_tagged_variant(&variant, &original_enum_ident)
+                    .map_err(|error| error.with_span(v.span()))?;
+            }
+
+            Ok(variant)
+        })
+        .collect::<Result<Vec<_>, ParseErrorWithSpan>>()?;
 
     // Check if the enum references itself recursively in any of its variants
     let is_recursive = variants.iter().any(|v| match v {
@@ -353,49 +365,73 @@ pub(crate) fn parse_enum(
         is_redacted: is_redacted(&e.attrs),
     };
 
-    // Figure out if we're dealing with a unit enum or an algebraic enum
-    if shared
+    let has_only_unit_variants = shared
         .variants
         .iter()
-        .all(|v| matches!(v, RustEnumVariant::Unit(_)))
-    {
-        // All enum variants are unit-type
-        if maybe_tag_key.is_some() {
-            return Err(ParseError::SerdeTagNotAllowed {
-                enum_ident: original_enum_ident,
-            }
-            .with_span(e.span()));
+        .all(|v| matches!(v, RustEnumVariant::Unit(_)));
+
+    match (maybe_tag_key, maybe_content_key) {
+        // Internally tagged enums serialize every variant as an object,
+        // including unit variants, so they are never unit enums.
+        (Some(tag_key), None) => Ok(RustItem::Enum(RustEnum::InternallyTagged {
+            tag_key,
+            shared,
+        })),
+
+        (_, Some(_)) if has_only_unit_variants => Err(ParseError::SerdeContentNotAllowed {
+            enum_ident: original_enum_ident,
         }
-        if maybe_content_key.is_some() {
-            return Err(ParseError::SerdeContentNotAllowed {
-                enum_ident: original_enum_ident,
-            }
-            .with_span(e.span()));
-        }
+        .with_span(e.span())),
 
-        Ok(RustItem::Enum(RustEnum::Unit(shared)))
-    } else {
-        // At least one enum variant is either a tuple or an anonymous struct
+        (None, None) if has_only_unit_variants => Ok(RustItem::Enum(RustEnum::Unit(shared))),
 
-        let tag_key = maybe_tag_key.ok_or_else(|| {
-            ParseError::SerdeTagRequired {
-                enum_ident: original_enum_ident.clone(),
-            }
-            .with_span(e.span())
-        })?;
-        let content_key = maybe_content_key.ok_or_else(|| {
-            ParseError::SerdeContentRequired {
-                enum_ident: original_enum_ident.clone(),
-            }
-            .with_span(e.span())
-        })?;
-
-        Ok(RustItem::Enum(RustEnum::Algebraic {
+        (Some(tag_key), Some(content_key)) => Ok(RustItem::Enum(RustEnum::Algebraic {
             tag_key,
             content_key,
             shared,
-        }))
+        })),
+
+        // Externally tagged enums with data, and content without a tag
+        (None, _) => Err(ParseError::SerdeTagRequired {
+            enum_ident: original_enum_ident,
+        }
+        .with_span(e.span())),
     }
+}
+
+/// Rejects tuple variants that serde cannot serialize in an internally tagged
+/// enum.
+///
+/// Serde writes the tag into the object that the variant's value serializes
+/// to, so it fails at runtime when the value is a primitive, a sequence or an
+/// optional value. Catching these when generating types keeps the generated
+/// definitions from describing JSON that the Rust code can never produce.
+///
+/// Named types and generic parameters are accepted because their serialized
+/// shape is not known while parsing a single item.
+fn check_internally_tagged_variant(
+    variant: &RustEnumVariant,
+    enum_ident: &str,
+) -> Result<(), ParseError> {
+    let RustEnumVariant::Tuple { ty, shared } = variant else {
+        return Ok(());
+    };
+
+    let is_object = match ty {
+        RustType::Simple { .. } | RustType::Generic { .. } => true,
+        // A unit value serializes as an object holding only the tag
+        RustType::Special(SpecialRustType::HashMap(..) | SpecialRustType::Unit) => true,
+        RustType::Special(_) => false,
+    };
+
+    if is_object {
+        return Ok(());
+    }
+
+    Err(ParseError::InternallyTaggedVariantNotObject {
+        enum_ident: enum_ident.to_owned(),
+        variant_ident: shared.id.original.clone(),
+    })
 }
 
 /// Parse an enum variant.

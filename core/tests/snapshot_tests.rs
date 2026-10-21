@@ -556,6 +556,8 @@ tests! {
     can_generate_struct_with_skipped_fields: [swift, kotlin, scala,  typescript, go, python];
     enum_is_properly_named_with_serde_overrides: [swift, kotlin, scala,  typescript, go, python];
     can_handle_quote_in_serde_rename: [swift, kotlin, scala,  typescript, go, python];
+    can_generate_unit_enum_as_union: [typescript { unit_enums_as_unions: true }];
+    can_generate_internally_tagged_enum: [typescript];
     can_handle_anonymous_struct: [swift, kotlin, scala,  typescript, go, python];
     test_generate_char: [swift, kotlin, scala, typescript, go, python];
     anonymous_struct_with_rename: [

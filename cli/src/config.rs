@@ -50,6 +50,8 @@ pub struct SwiftParams {
 #[serde(default)]
 pub struct TypeScriptParams {
     pub type_mappings: HashMap<String, String>,
+    /// Generate unit enums as string literal union types instead of TypeScript enums.
+    pub unit_enums_as_unions: bool,
 }
 
 #[derive(Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -202,6 +204,14 @@ mod test {
         let config = load_config(Some(&path)).unwrap();
 
         assert_eq!(config.swift.prefix, "test");
+    }
+
+    #[test]
+    fn typescript_unions_test() {
+        let path = config_file_path("typescript_unions_config.toml");
+        let config = load_config(Some(&path)).unwrap();
+
+        assert!(config.typescript.unit_enums_as_unions);
     }
     #[test]
     #[cfg(feature = "go")]

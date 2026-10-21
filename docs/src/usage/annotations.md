@@ -166,3 +166,33 @@ export interface MyStruct {
 	c: number;
 }
 ```
+
+### Internally Tagged Enums
+
+Enums with data need a serde tag. With both `tag` and `content`, serde writes the variant's data under the content key, and every language supports the enum. With only `tag`, serde writes the tag into the same object as the variant's data. Typeshare generates these internally tagged enums for TypeScript only; the other languages report an error.
+```rust
+#[typeshare]
+pub struct Square {
+    side: f64,
+}
+
+#[typeshare]
+#[serde(tag = "type")]
+pub enum Shape {
+    Empty,
+    Circle { radius: f64 },
+    Square(Square),
+}
+```
+becomes the following Typescript definition.
+```typescript
+export type Shape = 
+	| { type: "Empty" }
+	| {
+	type: "Circle";
+	radius: number;
+}
+	| ({ type: "Square" } & Square);
+```
+
+Serde can only add the tag to a value that serializes as an object, so tuple variants must contain a struct, a map or `()`. Typeshare rejects tuple variants that contain a primitive, a sequence or an `Option`. An enum whose variants are all units also generates objects when it has a tag, such as `{ type: "Empty" }`.
