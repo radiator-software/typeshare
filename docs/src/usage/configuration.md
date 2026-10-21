@@ -57,6 +57,34 @@ package = 'com.example.package'
 
 In the configuration file, you can specify the options you want to set so that they do not need to be specified when running Typeshare from the command line. You can also define custom type mappings to specify the foreign type that a given Rust type will correspond to.
 
+### TypeScript unit enums as unions
+
+By default, Typeshare generates Rust enums without fields as TypeScript `enum` declarations. Set `unit_enums_as_unions` to generate them as string literal union types instead:
+
+```toml
+[typescript]
+unit_enums_as_unions = true
+```
+
+```rust
+#[typeshare]
+#[serde(rename_all = "lowercase")]
+pub enum Colors {
+    Red,
+    /// Green is a cool color
+    Green,
+}
+```
+
+```ts
+export type Colors =
+	| "red"
+	/** Green is a cool color */
+	| "green";
+```
+
+Union types have no runtime representation, so the generated code works with TypeScript's `erasableSyntaxOnly` option and with tools that strip types without transforming enums. Code that referred to enum members, such as `Colors.Red`, must use the string values instead.
+
 In order to create a config file you can run the following command to generate one in your current directory.
 ```
 typeshare -g

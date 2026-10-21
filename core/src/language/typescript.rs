@@ -25,6 +25,10 @@ pub struct TypeScript {
     /// Whether or not to exclude the version header that normally appears at the top of generated code.
     /// If you aren't generating a snapshot test, this setting can just be left as a default (false)
     pub no_version_header: bool,
+    /// Whether to generate unit enums as string literal union types instead of TypeScript enums.
+    /// Union types are erased at compile time, so the output works with `erasableSyntaxOnly` and
+    /// with tools that strip types without transforming enums.
+    pub unit_enums_as_unions: bool,
     /// Carries the unique set of types for custom json translation
     pub types_for_custom_json_translation: BTreeMap<String, BTreeSet<String>>,
 }
@@ -221,6 +225,26 @@ export const ReplacerFunc = (key: string, value: unknown): unknown => {{
         };
 
         match e {
+            RustEnum::Unit(shared) if self.unit_enums_as_unions => {
+                write!(
+                    w,
+                    "export type {}{} =",
+                    shared.id.renamed, generic_parameters
+                )?;
+
+                // An enum without variants has no values, which a union cannot express.
+                if shared.variants.is_empty() {
+                    write!(w, " never")?;
+                }
+
+                for variant in &shared.variants {
+                    writeln!(w)?;
+                    self.write_comments(w, 1, &variant.shared().comments)?;
+                    write!(w, "\t| {:?}", &variant.shared().id.renamed)?;
+                }
+
+                writeln!(w, ";\n")
+            }
             RustEnum::Unit(shared) => {
                 write!(
                     w,
