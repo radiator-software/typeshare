@@ -1,6 +1,6 @@
 [package]
 name = "typeshare-cli"
-version = "1.13.4-radiator.1"
+version = "1.13.4-radiator.2"
 edition = "2021"
 description = "Command Line Tool for generating language files with typeshare"
 license = "MIT OR Apache-2.0"
@@ -26,7 +26,7 @@ ignore = "0.4"
 once_cell = "1"
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
-typeshare-core = { path = "../core", version = "=1.13.4-radiator.1" }
+typeshare-core = { path = "../core", version = "=1.13.4-radiator.2" }
 log.workspace = true
 flexi_logger.workspace = true
 anyhow = "1"
