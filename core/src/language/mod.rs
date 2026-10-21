@@ -495,6 +495,19 @@ fn used_imports<'a, 'b: 'a>(
     used_imports
 }
 
+/// Builds the error that a language returns from `write_enum` when it cannot
+/// generate an internally tagged enum.
+///
+/// Only TypeScript generates internally tagged enums. The other languages
+/// decode enums from a separate tag and content, so generating their usual
+/// definition would silently fail to decode the JSON that serde produces.
+pub(crate) fn internally_tagged_enum_unsupported(language: &str, e: &RustEnum) -> std::io::Error {
+    std::io::Error::other(format!(
+        "Internally tagged enums are not supported for {language}: {}. Add a content key, e.g. #[serde(tag = \"type\", content = \"content\")]",
+        e.shared().id.original
+    ))
+}
+
 #[cfg(test)]
 mod test {
     use crate::language::CrateName;

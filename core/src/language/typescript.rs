@@ -256,7 +256,7 @@ export const ReplacerFunc = (key: string, value: unknown): unknown => {{
 
                 writeln!(w, "\n}}\n")
             }
-            RustEnum::Algebraic { shared, .. } => {
+            RustEnum::Algebraic { shared, .. } | RustEnum::InternallyTagged { shared, .. } => {
                 write!(
                     w,
                     "export type {}{} = ",
@@ -354,6 +354,49 @@ impl TypeScript {
                     }
                 }
             }),
+
+            // Write all the internally tagged variants out. Serde writes the tag
+            // into the same object as the variant's data.
+            RustEnum::InternallyTagged { tag_key, shared } => {
+                let tag_property = typescript_property_aware_rename(tag_key);
+
+                shared.variants.iter().try_for_each(|v| {
+                    writeln!(w)?;
+                    self.write_comments(w, 1, &v.shared().comments)?;
+
+                    match v {
+                        RustEnumVariant::Unit(shared) => {
+                            write!(w, "\t| {{ {}: {:?} }}", tag_property, shared.id.renamed)
+                        }
+                        // A unit value adds nothing to the tag object
+                        RustEnumVariant::Tuple {
+                            ty: RustType::Special(SpecialRustType::Unit),
+                            shared,
+                        } => write!(w, "\t| {{ {}: {:?} }}", tag_property, shared.id.renamed),
+                        RustEnumVariant::Tuple { ty, shared } => {
+                            let r#type = self
+                                .format_type(ty, e.shared().generic_types.as_slice())
+                                .map_err(io::Error::other)?;
+
+                            write!(
+                                w,
+                                "\t| ({{ {}: {:?} }} & {})",
+                                tag_property, shared.id.renamed, r#type
+                            )
+                        }
+                        RustEnumVariant::AnonymousStruct { fields, shared } => {
+                            writeln!(w, "\t| {{")?;
+                            writeln!(w, "\t{}: {:?};", tag_property, shared.id.renamed)?;
+
+                            fields.iter().try_for_each(|f| {
+                                self.write_field(w, f, e.shared().generic_types.as_slice())
+                            })?;
+
+                            write!(w, "}}")
+                        }
+                    }
+                })
+            }
         }
     }
 

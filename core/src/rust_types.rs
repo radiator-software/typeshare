@@ -674,6 +674,33 @@ pub enum RustEnum {
         /// Shared context for this enum.
         shared: RustEnumShared,
     },
+    /// An internally tagged enum, which has a `#[serde(tag = "...")]`
+    /// attribute without `content`
+    ///
+    /// Serde writes the tag into the same object as the variant's fields, so
+    /// tuple variants must contain a struct or a map.
+    ///
+    /// An example of such an enum:
+    ///
+    /// ```ignore
+    /// struct AssociatedData { /* ... */ }
+    ///
+    /// #[serde(tag = "type")]
+    /// enum InternallyTaggedEnum {
+    ///     UnitVariant,
+    ///     TupleVariant(AssociatedData),
+    ///     AnonymousStruct {
+    ///         field: String,
+    ///         another_field: bool,
+    ///     },
+    /// }
+    /// ```
+    InternallyTagged {
+        /// The parsed value of the `#[serde(tag = "...")]` attribute
+        tag_key: String,
+        /// Shared context for this enum.
+        shared: RustEnumShared,
+    },
 }
 
 impl PartialEq for RustEnum {
@@ -700,7 +727,9 @@ impl RustEnum {
     /// Get a reference to the inner shared content
     pub fn shared(&self) -> &RustEnumShared {
         match self {
-            Self::Unit(shared) | Self::Algebraic { shared, .. } => shared,
+            Self::Unit(shared)
+            | Self::Algebraic { shared, .. }
+            | Self::InternallyTagged { shared, .. } => shared,
         }
     }
 }

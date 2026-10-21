@@ -11,7 +11,7 @@ use crate::{
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use super::CrateTypes;
+use super::{internally_tagged_enum_unsupported, CrateTypes};
 
 /// All information needed to generate Go type-code
 #[derive(Default)]
@@ -263,6 +263,10 @@ impl Go {
         e: &RustEnum,
         custom_structs: &HashSet<&str>,
     ) -> std::io::Result<()> {
+        if let RustEnum::InternallyTagged { .. } = e {
+            return Err(internally_tagged_enum_unsupported("Go", e));
+        }
+
         // Make a suitable name for an anonymous struct enum variant
         let uppercase_acronyms = self.uppercase_acronyms.clone();
         let make_anonymous_struct_name = |variant_name: &str| {
@@ -278,6 +282,9 @@ impl Go {
         write_comments(w, 0, &e.shared().comments)?;
 
         match e {
+            RustEnum::InternallyTagged { .. } => {
+                unreachable!("rejected at the start of write_enum")
+            }
             RustEnum::Unit(shared) => {
                 writeln!(
                     w,

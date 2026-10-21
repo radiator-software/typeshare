@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use std::io::Write;
 use typeshare_core::{
     context::{ParseContext, ParseFileContext},
-    language::{CrateTypes, Language, TypeScript},
+    language::{CrateTypes, Kotlin, Language, TypeScript},
     parser::{self},
 };
 
@@ -131,31 +131,6 @@ mod serde_attributes_on_enums {
     }
 
     #[test]
-    fn tag_not_allowed_on_non_algebraic() {
-        let source = r##"
-    #[typeshare]
-    #[serde(tag = "bla")]
-    pub enum Foo {
-        Variant1,
-        Variant2,
-    }
-    "##;
-
-        let mut out: Vec<u8> = Vec::new();
-        let err = process_input(
-            source,
-            &mut TypeScript::default(),
-            &HashMap::new(),
-            &mut out,
-        )
-        .unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "The serde tag attribute is not supported for non-algebraic enums: Foo, on line 2 and column 4"
-        );
-    }
-
-    #[test]
     fn both_not_allowed_on_non_algebraic() {
         let source = r##"
     #[typeshare]
@@ -176,7 +151,100 @@ mod serde_attributes_on_enums {
         .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "The serde tag attribute is not supported for non-algebraic enums: Foo, on line 2 and column 4"
+            "The serde content attribute is not supported for non-algebraic enums: Foo, on line 2 and column 4"
+        );
+    }
+
+    #[test]
+    fn tag_required_with_content_on_algebraic() {
+        let source = r##"
+    #[typeshare]
+    #[serde(content = "bla")]
+    pub enum Foo {
+        Variant1(String),
+        Variant2,
+    }
+    "##;
+
+        let mut out: Vec<u8> = Vec::new();
+        let err = process_input(
+            source,
+            &mut TypeScript::default(),
+            &HashMap::new(),
+            &mut out,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Serde tag attribute needs to be specified for algebraic enum Foo. e.g. #[serde(tag = \"type\")] or #[serde(tag = \"type\", content = \"content\")], on line 2 and column 4"
+        );
+    }
+
+    #[test]
+    fn internally_tagged_primitive_variant_not_allowed() {
+        let source = r##"
+    #[typeshare]
+    #[serde(tag = "type")]
+    pub enum Foo {
+        Variant1 { field: String },
+        Variant2(String),
+    }
+    "##;
+
+        let mut out: Vec<u8> = Vec::new();
+        let err = process_input(
+            source,
+            &mut TypeScript::default(),
+            &HashMap::new(),
+            &mut out,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Tuple variant Variant2 of internally tagged enum Foo must contain a struct or a map, because serde writes the tag into the same object as the variant's fields, on line 6 and column 8"
+        );
+    }
+
+    #[test]
+    fn internally_tagged_optional_variant_not_allowed() {
+        let source = r##"
+    #[typeshare]
+    #[serde(tag = "type")]
+    pub enum Foo {
+        Variant1(Option<Bar>),
+    }
+    "##;
+
+        let mut out: Vec<u8> = Vec::new();
+        let err = process_input(
+            source,
+            &mut TypeScript::default(),
+            &HashMap::new(),
+            &mut out,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Tuple variant Variant1 of internally tagged enum Foo must contain a struct or a map, because serde writes the tag into the same object as the variant's fields, on line 5 and column 8"
+        );
+    }
+
+    #[test]
+    fn internally_tagged_not_supported_for_kotlin() {
+        let source = r##"
+    #[typeshare]
+    #[serde(tag = "type")]
+    pub enum Foo {
+        Variant1 { field: String },
+    }
+    "##;
+
+        let mut out: Vec<u8> = Vec::new();
+        let err =
+            process_input(source, &mut Kotlin::default(), &HashMap::new(), &mut out).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Internally tagged enums are not supported for Kotlin: Foo. Add a content key, e.g. #[serde(tag = \"type\", content = \"content\")]"
         );
     }
 

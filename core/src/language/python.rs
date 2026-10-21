@@ -14,7 +14,7 @@ use std::hash::Hash;
 use std::sync::OnceLock;
 use std::{collections::HashMap, io::Write};
 
-use super::CrateTypes;
+use super::{internally_tagged_enum_unsupported, CrateTypes};
 
 use convert_case::{Case, Casing};
 use itertools::Itertools;
@@ -344,6 +344,10 @@ impl Language for Python {
     }
 
     fn write_enum(&mut self, w: &mut dyn Write, e: &RustEnum) -> std::io::Result<()> {
+        if let RustEnum::InternallyTagged { .. } = e {
+            return Err(internally_tagged_enum_unsupported("Python", e));
+        }
+
         // Make a suitable name for an anonymous struct enum variant
         let make_anonymous_struct_name =
             |variant_name: &str| format!("{}{}Inner", &e.shared().id.renamed, variant_name);
@@ -351,6 +355,9 @@ impl Language for Python {
         // Generate named types for any anonymous struct variants of this enum
         self.write_types_for_anonymous_structs(w, e, &make_anonymous_struct_name)?;
         match e {
+            RustEnum::InternallyTagged { .. } => {
+                unreachable!("rejected at the start of write_enum")
+            }
             // Write all the unit variants out (there can only be unit variants in
             // this case)
             RustEnum::Unit(shared) => {

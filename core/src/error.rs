@@ -42,14 +42,15 @@ pub enum ParseError {
     ComplexTupleStruct,
     #[error("Multiple unnamed associated types are not currently supported")]
     MultipleUnnamedAssociatedTypes,
-    #[error("The serde tag attribute is not supported for non-algebraic enums: {enum_ident}")]
-    SerdeTagNotAllowed { enum_ident: String },
     #[error("The serde content attribute is not supported for non-algebraic enums: {enum_ident}")]
     SerdeContentNotAllowed { enum_ident: String },
-    #[error("Serde tag attribute needs to be specified for algebraic enum {enum_ident}. e.g. #[serde(tag = \"type\", content = \"content\")]")]
+    #[error("Serde tag attribute needs to be specified for algebraic enum {enum_ident}. e.g. #[serde(tag = \"type\")] or #[serde(tag = \"type\", content = \"content\")]")]
     SerdeTagRequired { enum_ident: String },
-    #[error("Serde content attribute needs to be specified for algebraic enum {enum_ident}. e.g. #[serde(tag = \"type\", content = \"content\")]")]
-    SerdeContentRequired { enum_ident: String },
+    #[error("Tuple variant {variant_ident} of internally tagged enum {enum_ident} must contain a struct or a map, because serde writes the tag into the same object as the variant's fields")]
+    InternallyTaggedVariantNotObject {
+        enum_ident: String,
+        variant_ident: String,
+    },
     #[error("The expression assigned to this constant variable is not a numeric literal")]
     RustConstExprInvalid,
     #[error("You cannot use typeshare on a constant that is not a numeric literal")]
